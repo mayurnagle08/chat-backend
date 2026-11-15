@@ -1,0 +1,216 @@
+openapi: 3.0.3
+info:
+  title: Chat Backend API
+  version: 1.0.0
+  description: REST API for direct messaging. All chat and user routes require a JWT.
+servers:
+  - url: http://localhost:3000
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200': { description: API is healthy }
+  /auth/register:
+    post:
+      summary: Register a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name: { type: string }
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+      responses:
+        '201': { description: User created and JWT returned }
+        '409': { description: Email already registered }
+  /auth/login:
+    post:
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        '200': { description: JWT returned }
+        '401': { description: Invalid credentials }
+  /chat/create:
+    post:
+      summary: Create or get a 1:1 chat
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userAId, userBId]
+              properties:
+                userAId: { type: string, format: uuid }
+                userBId: { type: string, format: uuid }
+      responses:
+        '200': { description: Chat ID and created flag }
+  /chat/{chatId}/message/send:
+    post:
+      summary: Send a message
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: chatId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [senderId, text]
+              properties:
+                senderId: { type: string, format: uuid }
+                text: { type: string, maxLength: 10000 }
+      responses:
+        '201': { description: Message created }
+  /chat/{chatId}/messages:
+    get:
+      summary: List messages (oldest first within returned page)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: chatId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50, maximum: 100 }
+        - in: query
+          name: cursor
+          description: Message ID returned as nextCursor on the previous page
+          schema: { type: string }
+      responses:
+        '200': { description: Messages and next cursor }
+  /chat/{chatId}/message/{messageId}/read:
+    post:
+      summary: Mark message as read
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: chatId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: messageId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId: { type: string, format: uuid }
+      responses:
+        '200': { description: Read receipt updated }
+  /chat/{chatId}/lastseen:
+    post:
+      summary: Update member last-seen message
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: chatId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, messageId]
+              properties:
+                userId: { type: string, format: uuid }
+                messageId: { type: string }
+      responses:
+        '200': { description: Last seen updated }
+  /user/{userId}/chats:
+    get:
+      summary: List chats for authenticated user
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: User chats }
+  /chat/{chatId}/message/{messageId}:
+    patch:
+      summary: Edit own message
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: chatId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: messageId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, text]
+              properties:
+                userId: { type: string, format: uuid }
+                text: { type: string, maxLength: 10000 }
+      responses:
+        '200': { description: Message edited }
+    delete:
+      summary: Soft-delete own message
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: chatId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: messageId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId: { type: string, format: uuid }
+      responses:
+        '200': { description: Message soft-deleted }
