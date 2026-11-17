@@ -26,8 +26,19 @@ export class ChatService {
 
     const [first, second] = [userAId, userBId].sort();
     const existing = await prisma.chat.findUnique({
-      where: { userAId_userBId: { userAId: first, userBId: second } },
-      include: { members: { select: { userId: true } } }
+      where: {
+        unique_direct_chat_pair: {
+          userAId: first,
+          userBId: second
+        }
+      },
+      include: {
+        members: {
+          select: {
+            userId: true
+          }
+        }
+      }
     });
     if (existing) return { chatId: existing.id, created: false };
 

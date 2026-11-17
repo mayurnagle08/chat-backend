@@ -20,18 +20,16 @@ model User {
 }
 
 model Chat {
-  id        String       @id @default(uuid()) @db.Uuid
-  // Canonically sorted user IDs make a 1:1 pair unique.
-  userAId   String       @map("user_a_id") @db.Uuid
-  userBId   String       @map("user_b_id") @db.Uuid
-  createdAt DateTime     @default(now()) @map("created_at")
-  updatedAt DateTime     @updatedAt @map("updated_at")
+  id        String   @id @default(uuid()) @db.Uuid
+  userAId   String   @db.Uuid
+  userBId   String   @db.Uuid
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   members   ChatMember[]
 
   @@unique([userAId, userBId], name: "unique_direct_chat_pair")
-  @@index([userAId])
-  @@index([userBId])
-  @@map("chats")
 }
 
 model ChatMember {

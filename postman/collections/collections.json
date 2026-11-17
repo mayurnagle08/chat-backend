@@ -1,0 +1,283 @@
+
+{
+  "info": {
+    "name": "Chat Backend - Local API Collection",
+    "description": "API collection based on the uploaded chat-backend project. Run requests in sequence.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "token1", "value": "" },
+    { "key": "token2", "value": "" },
+    { "key": "userId1", "value": "" },
+    { "key": "userId2", "value": "" },
+    { "key": "chatId", "value": "" },
+    { "key": "messageId", "value": "" },
+    { "key": "name1", "value": "Mayur" },
+    { "key": "name2", "value": "Rahul" },
+    { "key": "email1", "value": "mayur.test@example.com" },
+    { "key": "email2", "value": "rahul.test@example.com" },
+    { "key": "password", "value": "Password@123" }
+  ],
+  "item": [
+    {
+      "name": "01 - Authentication",
+      "item": [
+        {
+          "name": "Register Mayur",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"{{name1}}\",\"email\":\"{{email1}}\",\"password\":\"{{password}}\"}"
+            }
+          }
+        },
+        {
+          "name": "Register Rahul",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"{{name2}}\",\"email\":\"{{email2}}\",\"password\":\"{{password}}\"}"
+            }
+          }
+        },
+        {
+          "name": "Login Mayur - Save Token 1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.token) pm.collectionVariables.set('token1', data.token);",
+                  "if (data.user && data.user.id) pm.collectionVariables.set('userId1', data.user.id);",
+                  "if (data.userId) pm.collectionVariables.set('userId1', data.userId);",
+                  "if (data.id) pm.collectionVariables.set('userId1', data.id);",
+                  "pm.test('Login response received', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\":\"{{email1}}\",\"password\":\"{{password}}\"}"
+            }
+          }
+        },
+        {
+          "name": "Login Rahul - Save Token 2",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.token) pm.collectionVariables.set('token2', data.token);",
+                  "if (data.user && data.user.id) pm.collectionVariables.set('userId2', data.user.id);",
+                  "if (data.userId) pm.collectionVariables.set('userId2', data.userId);",
+                  "if (data.id) pm.collectionVariables.set('userId2', data.id);",
+                  "pm.test('Login response received', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\":\"{{email2}}\",\"password\":\"{{password}}\"}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Chat APIs",
+      "item": [
+        {
+          "name": "Create Chat - Save Chat ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.chatId) pm.collectionVariables.set('chatId', data.chatId);",
+                  "if (data.chat && data.chat.id) pm.collectionVariables.set('chatId', data.chat.id);",
+                  "if (data.id) pm.collectionVariables.set('chatId', data.id);",
+                  "pm.test('Chat created successfully', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token1}}" }
+            ],
+            "url": "{{baseUrl}}/chat/create",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"userAId\":\"{{userId1}}\",\"userBId\":\"{{userId2}}\"}"
+            }
+          }
+        },
+        {
+          "name": "Get User 1 Chats",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token1}}" }],
+            "url": "{{baseUrl}}/user/{{userId1}}/chats"
+          }
+        },
+        {
+          "name": "Get Chat Messages",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token1}}" }],
+            "url": "{{baseUrl}}/chat/{{chatId}}/messages?limit=50"
+          }
+        },
+        {
+          "name": "Send Message - Save Message ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.id) pm.collectionVariables.set('messageId', data.id);",
+                  "if (data.messageId) pm.collectionVariables.set('messageId', data.messageId);",
+                  "if (data.message && data.message.id) pm.collectionVariables.set('messageId', data.message.id);",
+                  "pm.test('Message sent successfully', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token1}}" }
+            ],
+            "url": "{{baseUrl}}/chat/{{chatId}}/message/send",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"senderId\":\"{{userId1}}\",\"text\":\"Hello Rahul! This is my first chat message.\"}"
+            }
+          }
+        },
+        {
+          "name": "Mark Message As Read - Rahul",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token2}}"
+              }
+            ],
+            "url": "{{baseUrl}}/chat/{{chatId}}/message/{{messageId}}/read",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"userId\":\"{{userId2}}\"}"
+            }
+          }
+        },
+        {
+          "name": "Update Last Seen - Rahul",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token2}}"
+              }
+            ],
+            "url": "{{baseUrl}}/chat/{{chatId}}/lastseen",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"userId\":\"{{userId2}}\",\"messageId\":\"{{messageId}}\"}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Message Management",
+      "item": [
+        {
+          "name": "Edit Message",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token1}}" }
+            ],
+            "url": "{{baseUrl}}/chat/{{chatId}}/message/{{messageId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"userId\":\"{{userId1}}\",\"text\":\"Edited message from Mayur\"}"
+            }
+          }
+        },
+        {
+          "name": "Delete Message",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token1}}"
+              }
+            ],
+            "url": "{{baseUrl}}/chat/{{chatId}}/message/{{messageId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"userId\":\"{{userId1}}\"}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 - Negative Tests",
+      "item": [
+        {
+          "name": "Get Chats Without Token - Expect Unauthorized",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/user/{{userId1}}/chats"
+          }
+        },
+        {
+          "name": "Invalid Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\":\"{{email1}}\",\"password\":\"WrongPassword\"}"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
