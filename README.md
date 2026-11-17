@@ -1,214 +1,367 @@
-# Chat Backend
+# Chat Backend API
 
-A TypeScript chat API built with Express, PostgreSQL + Prisma, and Firebase Firestore.
+A backend chat application built using **Node.js, TypeScript, Express.js, PostgreSQL, Prisma ORM, and Firebase Cloud Firestore**.
+
+The application supports 1:1 conversations, message delivery, message history, read receipts, and last-seen tracking.
 
 ## Features
 
-- 1:1 chat creation with duplicate-pair protection.
-- User registration/login with bcrypt password hashing and JWT authentication.
-- PostgreSQL stores users, chats, and chat memberships.
-- Firestore stores messages, read receipts, and per-member last-seen state.
-- Timestamp-ordered message history with cursor pagination.
-- Read receipts, last-seen updates, sender-only message edit and soft-delete.
-- Request validation with Zod, centralized errors, Helmet, CORS, rate limiting.
-- OpenAPI specification, Jest tests, and Docker Compose.
+- 1:1 chat creation with duplicate conversation prevention.
+- User registration and login using bcrypt and JWT authentication.
+- PostgreSQL with Prisma for users, chats, and chat memberships.
+- Firebase Firestore for message storage and read receipts.
+- Timestamp-based message ordering.
+- Cursor-based message pagination.
+- Message read status tracking.
+- Per-user last-seen message tracking.
+- Message editing and soft deletion (bonus features).
+- Request validation using Zod.
+- Centralized error handling and protected API routes.
 
-## Architecture and data ownership
+## Technology Stack
 
-**PostgreSQL:** users, direct chat records, membership records.
+| Technology | Purpose |
+|---|---|
+| Node.js | Backend runtime |
+| TypeScript | Type-safe development |
+| Express.js | REST API framework |
+| PostgreSQL | Relational data storage |
+| Prisma ORM | Database access |
+| Firebase Firestore | Message and read-receipt storage |
+| JWT | Authentication |
+| bcrypt | Password hashing |
+| Zod | Request validation |
 
-**Firestore:**
+## Architecture
+
+The application uses two databases, each responsible for a specific type of data.
+
+**PostgreSQL**
+
+Stores:
+- User accounts
+- Direct chat records
+- Chat membership records
+
+**Firebase Cloud Firestore**
+
+Stores:
+- Chat messages
+- Message timestamps
+- Read receipts
+- Per-member last-seen information
+
+### Firestore Structure
+
 ```text
-chats/{chatId}/messages/{messageId}
-  chatId, senderId, text, sentAt, editedAt, deletedAt, readBy[]
+chats/
+  {chatId}/
+    messages/
+      {messageId}
+        chatId
+        senderId
+        text
+        sentAt
+        editedAt
+        deletedAt
+        readBy[]
 
-chats/{chatId}/members/{userId}
-  lastSeenMessageId, lastSeenAt
+    members/
+      {userId}
+        lastSeenMessageId
+        lastSeenAt
 ```
 
-Message deletion is a soft delete: the document remains for consistent pagination and receipts, but `text` is cleared and `deletedAt` is set. Read receipts are stored as a unique `readBy` user ID array on the message document.
+Messages are soft-deleted. The Firestore document remains available, but its text is cleared and `deletedAt` is updated.
 
-## Requirements
+## Prerequisites
 
 - Node.js 22+
 - npm
 - PostgreSQL 14+
 - Firebase project with Cloud Firestore enabled
-- Firebase service account credentials with Firestore access
+- Firebase service account credentials
 
-## Setup
+## Local Setup
 
-1. Clone the repository and install dependencies:
-
-   ```bash
-   npm install
-   cp .env.example .env
-   ```
-
-2. Configure `.env`:
-   - `DATABASE_URL`: PostgreSQL connection string.
-   - `JWT_SECRET`: at least 32 random characters.
-   - `FIREBASE_PROJECT_ID`: Firebase project ID.
-   - `GOOGLE_APPLICATION_CREDENTIALS`: absolute path to the service account JSON.
-
-   Never commit `.env` or the service-account JSON.
-
-3. Create the PostgreSQL database, then generate Prisma client and run migrations:
-
-   ```bash
-   npx prisma generate
-   npx prisma migrate dev --name init
-   ```
-
-4. Start the API:
-
-   ```bash
-   npm run dev
-   ```
-
-   Health check: `GET http://localhost:3000/health`
-
-## Docker
-
-The Compose file starts PostgreSQL and the API. Put a Firebase service account file at `./firebase-service-account.json` (or set `GOOGLE_APPLICATION_CREDENTIALS_HOST` to its path), create `.env`, then run:
+### 1. Clone the repository
 
 ```bash
-docker compose up --build
+git clone <YOUR_GITHUB_REPOSITORY_URL>
+cd chat-backend
 ```
 
-The API container runs `prisma migrate deploy` before starting. The service-account file is mounted read-only and must not be committed.
+### 2. Install dependencies
 
-For deployments, use a secrets manager rather than baking credentials into the image. Configure database backups, Firebase IAM least privilege, TLS termination, and production CORS origins.
+```bash
+npm install
+```
 
-## API
+### 3. Configure environment variables
 
-All `/chat/*` and `/user/*` endpoints require:
+Create a `.env` file using `.env.example` as a reference.
+
+Configure the following values:
+
+```env
+DATABASE_URL="postgresql://username:password@localhost:5432/chatdb"
+JWT_SECRET="your_secure_jwt_secret"
+FIREBASE_PROJECT_ID="your_firebase_project_id"
+```
+
+Configure your Firebase service account credentials according to `src/config/firebase.ts`.
+
+For local development, keep the service account JSON at the configured project path. Never commit Firebase credentials or `.env` files.
+
+### 4. Configure PostgreSQL and Prisma
+
+Create the PostgreSQL database, then run:
+
+```bash
+npx prisma generate
+npx prisma migrate dev --name init
+```
+
+### 5. Start the application
+
+```bash
+npm run dev
+```
+
+The API runs at:
+
+```text
+http://localhost:3000
+```
+
+Health check:
 
 ```http
-Authorization: Bearer <JWT>
+GET http://localhost:3000/health
+```
+
+## API Documentation
+
+All chat and user endpoints require JWT authentication.
+
+Include the following headers in protected requests:
+
+```http
+Authorization: Bearer <JWT_TOKEN>
 Content-Type: application/json
 ```
 
 ### Authentication
 
-**POST `/auth/register`**
-```json
-{ "name": "Asha", "email": "asha@example.com", "password": "password123" }
+**Register**
+
+```http
+POST /auth/register
 ```
 
-**POST `/auth/login`**
-```json
-{ "email": "asha@example.com", "password": "password123" }
-```
-
-Both return `{ "user": { "id": "...", "name": "...", "email": "..." }, "token": "..." }`.
-
-### Create or get chat
-
-**POST `/chat/create`**
-
-The authenticated user must be one of the two users.
+Request:
 
 ```json
-{ "userAId": "USER_UUID_1", "userBId": "USER_UUID_2" }
+{
+  "name": "Asha",
+  "email": "asha@example.com",
+  "password": "password123"
+}
 ```
+
+**Login**
+
+```http
+POST /auth/login
+```
+
+Request:
+
+```json
+{
+  "email": "asha@example.com",
+  "password": "password123"
+}
+```
+
+Both endpoints return the user details and JWT token.
+
+### 1. Create or Get a 1:1 Chat
+
+```http
+POST /chat/create
+```
+
+Request:
+
+```json
+{
+  "userAId": "USER_UUID_1",
+  "userBId": "USER_UUID_2"
+}
+```
+
+The authenticated user must be one of the two participants.
 
 Response:
+
 ```json
-{ "chatId": "CHAT_UUID", "created": true }
+{
+  "chatId": "CHAT_UUID",
+  "created": true
+}
 ```
 
-### Send message
+The API prevents duplicate direct conversations between the same two users.
 
-**POST `/chat/:chatId/message/send**
-```json
-{ "senderId": "AUTHENTICATED_USER_UUID", "text": "Hello!" }
+### 2. Send a Message
+
+```http
+POST /chat/:chatId/message/send
 ```
 
-Response includes `id`, `chatId`, `senderId`, `text`, `sentAt`, `editedAt`, `deletedAt`, and `readBy`.
+Request:
 
-### Get messages
-
-**GET `/chat/:chatId/messages?limit=50&cursor=MESSAGE_ID`**
-
-- `limit` defaults to 50 and must be between 1 and 100.
-- Results are returned oldest-first within each page.
-- `nextCursor` is supplied when another page may exist. Pass it as `cursor` to fetch the next (older) page.
-- Deleted messages are returned with empty text and a `deletedAt` timestamp.
-
-### Mark message read
-
-**POST `/chat/:chatId/message/:messageId/read**
 ```json
-{ "userId": "AUTHENTICATED_USER_UUID" }
+{
+  "senderId": "AUTHENTICATED_USER_UUID",
+  "text": "Hello!"
+}
 ```
 
-### Update last seen
+Returns the created message with its ID, sender, text, timestamp, and read status.
 
-**POST `/chat/:chatId/lastseen**
-```json
-{ "userId": "AUTHENTICATED_USER_UUID", "messageId": "FIRESTORE_MESSAGE_ID" }
+### 3. Get Chat Messages
+
+```http
+GET /chat/:chatId/messages?limit=50
 ```
 
-### List chats
+Optional query parameters:
 
-**GET `/user/:userId/chats**
+- `limit`: Number of messages to retrieve (default: 50, maximum: 100).
+- `cursor`: Message ID used to retrieve the next page of older messages.
 
-Returns chat IDs, member IDs, member profiles, and created/updated timestamps from PostgreSQL.
+Messages are ordered by timestamp. Each page is returned in chronological order.
 
-### Edit message (bonus)
+Response includes:
 
-**PATCH `/chat/:chatId/message/:messageId**
 ```json
-{ "userId": "AUTHENTICATED_USER_UUID", "text": "Corrected text" }
+{
+  "messages": [],
+  "nextCursor": "MESSAGE_ID"
+}
 ```
 
-Only the original sender can edit a non-deleted message.
+### 4. Mark a Message as Read
 
-### Delete message (bonus)
-
-**DELETE `/chat/:chatId/message/:messageId**
-```json
-{ "userId": "AUTHENTICATED_USER_UUID" }
+```http
+POST /chat/:chatId/message/:messageId/read
 ```
 
-Only the original sender can delete. This is a soft delete.
+Request:
 
-## Swagger / OpenAPI
+```json
+{
+  "userId": "AUTHENTICATED_USER_UUID"
+}
+```
 
-The OpenAPI 3.0 specification is in `swagger.yaml`. Import it into Swagger Editor or Postman to explore and try the API. To host Swagger UI, use an approved static Swagger UI deployment or add `swagger-ui-express` and serve this file.
+Updates the message's `readBy` array with the authenticated user's ID.
 
-## Tests
+### 5. Update Last Seen
+
+```http
+POST /chat/:chatId/lastseen
+```
+
+Request:
+
+```json
+{
+  "userId": "AUTHENTICATED_USER_UUID",
+  "messageId": "FIRESTORE_MESSAGE_ID"
+}
+```
+
+Stores the user's last-seen message ID and timestamp.
+
+### 6. Get User Chats
+
+```http
+GET /user/:userId/chats
+```
+
+Returns the user's conversations, participant details, and chat timestamps.
+
+### 7. Edit a Message (Bonus)
+
+```http
+PATCH /chat/:chatId/message/:messageId
+```
+
+Request:
+
+```json
+{
+  "userId": "AUTHENTICATED_USER_UUID",
+  "text": "Updated message"
+}
+```
+
+Only the original sender can edit a message. Deleted messages cannot be edited.
+
+### 8. Delete a Message (Bonus)
+
+```http
+DELETE /chat/:chatId/message/:messageId
+```
+
+Request:
+
+```json
+{
+  "userId": "AUTHENTICATED_USER_UUID"
+}
+```
+
+Only the original sender can delete a message. Deletion is implemented as a soft delete.
+
+## Testing
+
+Run the TypeScript build:
+
+```bash
+npm run build
+```
+
+Run the test suite:
 
 ```bash
 npm test
+```
+
+Run test coverage:
+
+```bash
 npm run test:coverage
 ```
 
-The current suite covers schema validation, health checks, and authentication middleware behavior. For full end-to-end chat tests, run PostgreSQL and the Firebase Emulator Suite, configure test credentials, and add integration scenarios for Firestore writes/transactions. Tests intentionally do not require real Firebase credentials.
+## API Specification
 
-## Important implementation notes / production hardening
+The project includes `swagger.yaml`, an OpenAPI specification that can be imported into Swagger Editor or Postman to explore the API endpoints.
 
-- The authenticated JWT subject is authoritative. The request's `senderId`/`userId` is checked against it to preserve the requested API shape and prevent spoofing.
-- Direct chat IDs are canonicalized by sorting UUIDs; a database unique constraint protects against concurrent duplicate creation.
-- Every message operation checks relational chat membership before accessing Firestore.
-- `readBy` is an array on each message, updated with Firestore `arrayUnion` in a transaction. For very large group chats, move receipts to a per-message subcollection or per-user read cursor to avoid Firestore document growth.
-- Cursor pagination uses Firestore document snapshots and stable ordering by `sentAt` plus document ID. For the first page, newest messages are queried and then reversed into chronological order.
-- Firebase Admin uses Application Default Credentials. The local emulator can be enabled with `FIRESTORE_EMULATOR_HOST`.
-- Consider adding account verification, refresh-token rotation/revocation, per-user rate limits, message attachment handling, abuse controls, observability, and retention policies before production use.
-- Firestore composite index requirements may be shown by Firebase when queries evolve; the current messages query orders by timestamp and document ID.
+## Implementation Notes
 
-## Repository submission
+- Direct chat participants are sorted before chat creation to maintain a consistent user pair.
+- A database unique constraint prevents duplicate direct chats.
+- JWT authentication identifies the current user.
+- User IDs supplied in requests are checked against the authenticated user to prevent identity spoofing.
+- Chat membership is verified before message operations.
+- Firestore `arrayUnion` is used to update read receipts without adding duplicate user IDs.
+- Message pagination uses timestamp and document ID ordering.
 
-Create a public GitHub repository, then:
+## Scope
 
-```bash
-git init
-git add .
-git commit -m "Build chat backend with PostgreSQL and Firestore"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/chat-backend.git
-git push -u origin main
-```
+This implementation focuses on 1:1 chat functionality as specified in the assignment. Message editing and soft deletion are included as additional features.
 
-Do not commit `.env`, Firebase service-account JSON, credentials, or secrets.
